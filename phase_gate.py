@@ -329,20 +329,50 @@ def cmd_start(phase_num: int):
     print(f"\nPhase {phase_num} is ready to begin.\n")
 
 
-def cmd_complete(phase_num: int, note: str = ""):
-    """Lock a phase: snapshot conversation, hash outputs, commit."""
-    print(f"\n=== Completing Phase {phase_num}: {PHASE_NAMES[phase_num]} ===\n")
+def cmd_commit(phase_num: int, note: str = ""):
+    """Freeze sub-agent work: git commit outputs + GATE.md, record hashes."""
+    print(f"\n=== Committing Phase {phase_num}: {PHASE_NAMES[phase_num]} (sub-agent snapshot) ===\n")
 
     phase_dir = PROJECT_ROOT / PHASE_DIRS[phase_num]
     if not phase_dir.exists():
         print(f"ERROR: Phase directory {phase_dir} does not exist. Run 'start' first.")
         sys.exit(1)
 
-    # Check that GATE.md exists (human must have reviewed)
+    # Check that GATE.md exists
+    gate_file = phase_dir / "GATE.md"
+    if not gate_file.exists():
+        print(f"WARNING: No GATE.md found. The orchestrator should write GATE.md before committing.")
+
+    # Update status and ledger
+    update_status(phase_num, "REVIEW")
+    update_ledger(phase_num, "COMMITTED (awaiting human review)", note)
+
+    # Git commit sub-agent work
+    commit_msg = f"phase {phase_num} commit: {PHASE_NAMES[phase_num]}"
+    if note:
+        commit_msg += f" — {note}"
+    commit_hash = git_commit(commit_msg)
+
+    if commit_hash:
+        print(f"Sub-agent work committed: {commit_hash}")
+        update_ledger(phase_num, f"git commit {commit_hash}")
+
+    print(f"\nPhase {phase_num} sub-agent work frozen. Awaiting human review of GATE.md.\n")
+
+
+def cmd_complete(phase_num: int, note: str = ""):
+    """Lock a phase after human approval: snapshot conversation, final commit."""
+    print(f"\n=== Completing Phase {phase_num}: {PHASE_NAMES[phase_num]} (human approved) ===\n")
+
+    phase_dir = PROJECT_ROOT / PHASE_DIRS[phase_num]
+    if not phase_dir.exists():
+        print(f"ERROR: Phase directory {phase_dir} does not exist.")
+        sys.exit(1)
+
+    # Check that GATE.md exists
     gate_file = phase_dir / "GATE.md"
     if not gate_file.exists():
         print(f"WARNING: No GATE.md found in {phase_dir}.")
-        print("The agent should create GATE.md for human review before completing.")
 
     # Snapshot conversation
     conv_log = phase_dir / "conversation_log.md"
@@ -355,24 +385,23 @@ def cmd_complete(phase_num: int, note: str = ""):
             dir_hashes = hash_directory(PROJECT_ROOT / PHASE_DIRS[p])
             input_hashes.update(dir_hashes)
 
-    # Write manifest
+    # Write manifest (locks the phase)
     write_manifest(phase_num, input_hashes)
 
     # Update status and ledger
     update_status(phase_num, "COMPLETE")
-    update_ledger(phase_num, "COMPLETED", note)
+    update_ledger(phase_num, "COMPLETED (human approved)", note)
 
-    # Git commit
+    # Git commit (human additions + conversation log + manifest)
     commit_msg = f"phase {phase_num} complete: {PHASE_NAMES[phase_num]}"
     if note:
         commit_msg += f" — {note}"
     commit_hash = git_commit(commit_msg)
 
     if commit_hash:
-        # Update ledger with commit hash
-        update_ledger(phase_num, f"COMMITTED as {commit_hash}")
+        update_ledger(phase_num, f"LOCKED as git commit {commit_hash}")
 
-    print(f"\nPhase {phase_num} locked and committed.\n")
+    print(f"\nPhase {phase_num} locked. Downstream phases can now start.\n")
 
 
 def cmd_status():
@@ -434,12 +463,12 @@ def cmd_validate(phase_num: int):
 
 def main():
     parser = argparse.ArgumentParser(description="REPLIC-AI phase gate manager")
-    parser.add_argument("command", choices=["start", "complete", "status", "validate"])
+    parser.add_argument("command", choices=["start", "commit", "complete", "status", "validate"])
     parser.add_argument("phase", nargs="?", type=int, help="Phase number (1-7)")
     parser.add_argument("--note", default="", help="Optional note for the ledger")
     args = parser.parse_args()
 
-    if args.command in ("start", "complete", "validate") and args.phase is None:
+    if args.command in ("start", "commit", "complete", "validate") and args.phase is None:
         parser.error(f"'{args.command}' requires a phase number.")
 
     if args.phase and args.phase not in PHASE_NAMES:
@@ -447,6 +476,8 @@ def main():
 
     if args.command == "start":
         cmd_start(args.phase)
+    elif args.command == "commit":
+        cmd_commit(args.phase, args.note)
     elif args.command == "complete":
         cmd_complete(args.phase, args.note)
     elif args.command == "status":

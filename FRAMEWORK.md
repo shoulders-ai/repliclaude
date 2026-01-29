@@ -38,15 +38,19 @@ Most published research should be reproducible. In practice, replication is rare
  [Phase 7] REPORT ──────────────> Final Replication Report
 ```
 
-Claude Code Opus 4.5 acts as the facilitator of the pipeline. It is responsible for:
-- Creating and managing the sub-agents
-- Providing the sub-agents with the context and tools they need
-- Reviewing the outputs of the sub-agents and communicating with the human
-- Providing the next phase's context
+Claude Code Opus 4.5 acts as the **orchestrator**. It is responsible for:
+- Calling `phase_gate.py` to manage transitions (start → commit → complete)
+- Launching sub-agents via the Task tool with: "read `templates/phaseN.md` and `FRAMEWORK.md`, then do the work"
+- Reviewing sub-agent outputs and writing GATE.md for human review
+- Reading human additions to GATE.md and deciding how to proceed
 
-One or multiple sub-agents may be created for each phase.
+**Sub-agents** do the actual work. They receive a focused prompt from the orchestrator, read their phase template from disk, and write output files. They never call phase_gate.py or manage transitions.
 
-The human reviews outputs between phases and may provide additional instructions or corrections.
+**The human** reviews GATE.md between phases, adds notes (never edits agent output), and says "proceed" or "redo."
+
+Each phase transitions through: **start** (prerequisites validated) → **commit** (sub-agent work frozen in git) → **complete** (human approved, phase locked). See `WORKFLOW.md` for the full interaction flow.
+
+Phase templates live in `templates/phaseN.md`. These are deterministic instruction sets that define exactly what each sub-agent must produce. The orchestrator does not rewrite or paraphrase templates — it tells the sub-agent to read the template file directly.
 
 ---
 
@@ -158,38 +162,19 @@ phase1_comprehension/
 
 Errors here cascade through everything downstream.
 
-**Prompt template:**
+**Sub-agent template:** `templates/phase1.md` — contains detailed instructions and output format specifications for all five layers plus the synthesis brief.
+
+**Orchestrator prompt to sub-agent:**
 ```
-Read the attached PDF thoroughly and decompose it into structured
-knowledge across five layers.
+Before doing anything, read these files:
+- templates/phase1.md (your detailed instructions — follow precisely)
+- FRAMEWORK.md (overall context — skim the pipeline overview and Phase 1 section)
 
-LAYER 1 - METADATA: Extract title, authors, affiliations, journal, DOI,
-field, funding, keywords, data/code availability statements. Save as
-paper_metadata.yaml.
-
-LAYER 2 - TABLES, FIGURES, EQUATIONS: Extract every table as a CSV file
-with headers and descriptions. Extract every figure as an image with a
-structured description (type, axes, variables, patterns). Extract all
-equations with variable definitions. Save in tables/ and figures/
-directories and equations.md.
-
-LAYER 3 - RESEARCH LOGIC: Map the full chain from research question
-through hypotheses, study design, data, preprocessing, methods,
-evaluation, results, interpretation, conclusions, and limitations.
-Explicitly link hypotheses to methods to results. Classify the study
-type and analysis paradigm. Save as research_logic.md.
-
-LAYER 4 - QUANTITATIVE TARGETS: Extract every number from every results
-table and key numbers from the text into a machine-readable format for
-later comparison. Save as quantitative_targets.json.
-
-LAYER 5 - REPRODUCIBILITY ASSESSMENT: Flag everything ambiguous,
-underspecified, or requiring domain expertise. Note software versions
-mentioned and data quirks. Save as reproducibility_flags.md.
-
-Finally, write a human-readable replication_brief.md that synthesizes
-all five layers into a coherent summary.
+Then read publication.pdf and execute the template instructions.
+Write all outputs to phase1_comprehension/.
 ```
+
+The orchestrator adds any paper-specific context (e.g., "this is a space weather paper" or "the human has noted that supplementary data is available at URL X").
 
 ---
 
@@ -253,30 +238,21 @@ phase2_planning/
 
 This is where the human can steer — e.g., "skip the 72-hour forecast analysis, focus on 24-hour" or "use the authors' preprocessed data rather than re-parsing raw files."
 
-**Prompt template:**
+**Sub-agent template:** `templates/phase2.md` — contains detailed instructions for resource discovery, feasibility assessment, assumptions register, task breakdown, and decision points.
+
+**Orchestrator prompt to sub-agent:**
 ```
-Using all Phase 1 outputs, build a replication plan.
+Before doing anything, read these files:
+- templates/phase2.md (your detailed instructions — follow precisely)
+- FRAMEWORK.md (overall context — skim the pipeline overview and Phase 2 section)
+- All files in phase1_comprehension/ (especially replication_brief.md,
+  research_logic.md, quantitative_targets.json, reproducibility_flags.md,
+  and GATE.md for human feedback)
 
-STEP 1 - RESOURCE DISCOVERY: Check every data URL and code repository
-from the paper. Test accessibility. Search GitHub/Zenodo for authors'
-code. Find alternative mirrors for any unavailable sources. Note file
-formats, sizes, and access requirements. Save as resource_inventory.md
-and data_sources.json.
-
-STEP 2 - FEASIBILITY: Rate each component of the replication by
-difficulty. Identify the critical path, quick wins, and potential
-blockers. Save as feasibility_assessment.md.
-
-STEP 3 - TASK BREAKDOWN: Break the replication into ordered, concrete
-tasks. Each task needs: description, success criteria, dependencies,
-and priority. Identify where iteration or fallback approaches may be
-needed. Choose the overall replication strategy (full/partial/progressive).
-
-STEP 4 - ENVIRONMENT: List all required packages and tools.
-
-Save the complete plan as replication_plan.md and package requirements
-as environment_requirements.txt.
+Execute the template instructions. Write all outputs to phase2_planning/.
 ```
+
+The orchestrator adds any context from the Phase 1 gate review (e.g., human corrections, decisions about scope).
 
 ---
 
@@ -476,7 +452,16 @@ For each replication, the project directory should look like:
 paper-replication/
   publication.pdf              # The paper
   README.md                    # Project overview
-  FRAMEWORK.md                 # This document
+  FRAMEWORK.md                 # Orchestrator's operating manual
+  WORKFLOW.md                  # Interaction flow documentation
+  phase_gate.py                # Phase transition enforcement tool
+  STATUS.md                    # Current pipeline state (auto-generated)
+  LEDGER.md                    # Append-only transition log (auto-generated)
+
+  templates/
+    phase1.md                   # Sub-agent instructions for Phase 1
+    phase2.md                   # Sub-agent instructions for Phase 2
+    ...                         # (additional templates as needed)
 
   phase1_comprehension/
     paper_metadata.yaml         # Structured metadata
@@ -487,13 +472,21 @@ paper-replication/
     quantitative_targets.json   # All numbers for comparison (machine-readable)
     reproducibility_flags.md    # Ambiguities, risks, gaps
     replication_brief.md        # Human-readable synthesis
+    GATE.md                     # Orchestrator assessment + human review
+    MANIFEST.json               # Phase lock (hashes, timestamps)
+    conversation_log.md         # Conversation snapshot at completion
 
   phase2_planning/
     resource_inventory.md       # Data/code source availability
     data_sources.json           # Machine-readable source config + fallbacks
     feasibility_assessment.md   # Difficulty ratings, critical path, blockers
+    assumptions.md              # Explicit assumptions requiring human approval
     replication_plan.md         # Strategy, ordered tasks, success criteria
+    decision_points.md          # Questions for the human
     environment_requirements.txt # What to install
+    GATE.md                     # Orchestrator assessment + human review
+    MANIFEST.json               # Phase lock
+    conversation_log.md         # Conversation snapshot
 
   phase3_data/
     raw/                        # Downloaded raw files
