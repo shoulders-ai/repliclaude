@@ -22,3 +22,7 @@ requests>=2.31
 
 # Image handling
 Pillow>=10.0
+
+# LLM APIs
+google-genai>=1.0
+python-dotenv>=1.0

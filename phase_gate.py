@@ -34,8 +34,7 @@ PHASE_NAMES = {
     3: "Data Acquisition",
     4: "Implementation",
     5: "Comparison",
-    6: "Extensions",
-    7: "Report",
+    6: "Final Report",
 }
 
 PHASE_DIRS = {
@@ -44,8 +43,7 @@ PHASE_DIRS = {
     3: "phase3_data",
     4: "phase4_implementation",
     5: "phase5_comparison",
-    6: "phase6_extensions",
-    7: "phase7_report",
+    6: "phase6_report",
 }
 
 # Claude Code conversation storage
@@ -464,7 +462,7 @@ def cmd_validate(phase_num: int):
 def main():
     parser = argparse.ArgumentParser(description="REPLIC-AI phase gate manager")
     parser.add_argument("command", choices=["start", "commit", "complete", "status", "validate"])
-    parser.add_argument("phase", nargs="?", type=int, help="Phase number (1-7)")
+    parser.add_argument("phase", nargs="?", type=int, help="Phase number (1-6)")
     parser.add_argument("--note", default="", help="Optional note for the ledger")
     args = parser.parse_args()
 
@@ -472,7 +470,7 @@ def main():
         parser.error(f"'{args.command}' requires a phase number.")
 
     if args.phase and args.phase not in PHASE_NAMES:
-        parser.error(f"Phase must be 1-7, got {args.phase}")
+        parser.error(f"Phase must be 1-6, got {args.phase}")
 
     if args.command == "start":
         cmd_start(args.phase)

@@ -32,10 +32,8 @@ Most published research should be reproducible. In practice, replication is rare
  [Phase 5] COMPARISON ──────────> Comparison Report
      |                            (own results vs paper results)
      v  human checkpoint
- [Phase 6] EXTENSIONS ──────────> Extended Analysis
-     |                            (robustness checks, new methods, critique)
-     v  human checkpoint
- [Phase 7] REPORT ──────────────> Final Replication Report
+ [Phase 6] FINAL REPORT ─────> Replication Report + Review
+                                  (synthesis, critique, proposed extensions)
 ```
 
 Claude Code Opus 4.5 acts as the **orchestrator**. It is responsible for:
@@ -258,151 +256,347 @@ The orchestrator adds any context from the Phase 1 gate review (e.g., human corr
 
 ### Phase 3: Data Acquisition & Validation
 
-**Purpose:** Download, parse, and clean all data. Validate against descriptive statistics reported in the paper.
+**Purpose:** Download, parse, and validate all data required for the replication. This phase is deliberately separate from implementation because data acquisition is the most fragile step — URLs break, formats change, servers go down. By isolating it, we can validate data integrity before writing any analysis code.
 
-**Input:** Resource inventory and replication brief.
+**Input:** All Phase 2 outputs (especially `data_sources.json`, `replication_plan.md`, `assumptions.md` with human approvals, `environment_requirements.txt`).
 
 **What the AI does:**
-- Sets up a Python environment with required packages
-- Downloads all datasets
-- Parses raw files into structured format (DataFrames / CSVs)
-- Handles format inconsistencies, encoding issues, missing values
-- Constructs derived variables described in the paper (e.g., binary labels, rolling windows)
-- Validates against the paper's reported descriptive statistics:
-  - Sample sizes and date ranges
-  - Class distributions
-  - Summary statistics
-- Saves cleaned data as CSV/parquet files
-- Documents any discrepancies between expected and actual data
 
-**Output:** Clean dataset files, a data validation report (`data_validation.md`), and the Python environment setup.
+#### Step 1: Environment Setup
+- Install all packages from `environment_requirements.txt` into the project `.venv`
+- Verify installations work (import each package)
+- Log exact versions of every installed package
 
-**Human checkpoint:** Do the data counts match the paper? If there are discrepancies, are they explainable (e.g., data updates since publication)? Is the environment set up correctly?
+#### Step 2: Data Download
+- Follow `data_sources.json` to download each source
+- Use primary URLs first, fall back to alternatives if needed
+- Save all raw files to `phase3_data/raw/` with clear naming
+- Log download metadata: URL used, timestamp, file size, HTTP status codes
+- Handle format-specific issues: FTP directory traversal, API pagination, encoding
 
-**Tools needed:** Python (pandas, numpy, requests, ftplib), web access.
+#### Step 3: Data Parsing
+- Parse raw files into structured DataFrames
+- Handle format inconsistencies, encoding issues, missing values
+- Document every parsing decision (e.g., "header on line 3, not line 1")
+- Save intermediate parsed files for debugging
 
-**Prompt template:**
+#### Step 4: Data Construction
+- Construct all derived variables described in the paper (binary labels, rolling windows, merged datasets, etc.)
+- Follow the exact preprocessing pipeline from `research_logic.md`
+- Where the paper is ambiguous, follow the approved assumptions from `assumptions.md`
+- Log every construction step
+
+#### Step 5: Data Validation
+- Compare against every descriptive statistic in `quantitative_targets.json` under `descriptive_statistics`
+- Validate: sample sizes, date ranges, class distributions, summary statistics, missing value counts
+- For each comparison: report expected value, actual value, match/mismatch, and explanation if different
+- Check data integrity: no duplicate rows, dates in range, no impossible values
+
+**Outputs:**
+
 ```
-Using the resource inventory (resource_inventory.md) and replication brief
-(replication_brief.md), set up a Python environment and acquire all
-datasets. Parse raw files into clean DataFrames. Construct all derived
-variables described in the paper. Validate against the paper's reported
-sample sizes, class distributions, and descriptive statistics. Save
-cleaned data as CSVs and document any discrepancies in data_validation.md.
+phase3_data/
+  raw/                          # Downloaded raw files (untouched)
+  processed/                    # Cleaned CSVs/parquets ready for analysis
+  scripts/
+    download.py                 # Reproducible download script
+    parse.py                    # Raw → structured parsing
+    construct.py                # Derived variable construction
+  download_log.md               # URL, timestamp, size, status for each download
+  data_dictionary.md            # Every column in every processed file: name, type, description, source
+  data_validation.md            # Expected vs actual for every descriptive statistic
+  data_summary.json             # Machine-readable summary stats for Phase 5 comparison
+  environment_lock.txt          # pip freeze output — exact versions installed
+  GATE.md
+  MANIFEST.json
+  conversation_log.md
+```
+
+**Human checkpoint:** Key questions:
+- Do the data counts match the paper? If not, are discrepancies explainable (e.g., data updated since publication)?
+- Are all data sources accounted for? Any that failed to download?
+- Is the data dictionary clear enough that someone else could understand the processed files?
+- Do the scripts run end-to-end without manual intervention?
+
+**Sub-agent template:** `templates/phase3.md`
+
+**Orchestrator prompt to sub-agent:**
+```
+Before doing anything, read these files:
+- templates/phase3.md (your detailed instructions — follow precisely)
+- FRAMEWORK.md (overall context — skim the pipeline overview and Phase 3 section)
+- phase2_planning/data_sources.json (what to download and from where)
+- phase2_planning/replication_plan.md (overall strategy)
+- phase2_planning/assumptions.md (approved assumptions — check human decisions)
+- phase2_planning/environment_requirements.txt (what to install)
+- phase1_comprehension/research_logic.md (preprocessing steps)
+- phase1_comprehension/quantitative_targets.json (validation targets)
+- phase2_planning/GATE.md (human feedback from Phase 2)
+
+Execute the template instructions. Write all outputs to phase3_data/.
+Use bash tools/run.sh for all Python execution.
 ```
 
 ---
 
 ### Phase 4: Implementation & Execution
 
-**Purpose:** Implement all methods from the paper and generate results.
+**Purpose:** Implement all methods from the paper and generate results. This is the core of the replication — translating the paper's methodology into working code that produces numerical outputs.
 
-**Input:** Cleaned data, replication brief.
+The sub-agent writes modular, testable code. Each method is a separate script or module. Results are saved as structured data (CSV/JSON), not just printed to console.
+
+**Input:** All Phase 3 outputs (especially processed data files, `data_dictionary.md`), plus Phase 1 outputs (`research_logic.md`, `equations.md`, `quantitative_targets.json`) and Phase 2 outputs (`replication_plan.md`, `assumptions.md`).
 
 **What the AI does:**
-- Implements each model/method described in the paper
-- Follows the exact training strategy (e.g., cross-validation scheme, train/test splits)
-- Computes all evaluation metrics
-- Generates all figures and tables
-- Saves all intermediate and final results
-- Logs any implementation decisions where the paper was ambiguous
 
-**Output:** Analysis code (Python scripts or notebooks), results tables (CSV), figures (PNG/PDF), and an implementation log (`implementation_log.md`) documenting decisions made.
+#### Step 1: Pipeline Scaffold
+- Create a modular code structure: shared utilities, per-method scripts, a master runner
+- Implement data loading and shared preprocessing as reusable functions
+- Set up results output directories
 
-**Human checkpoint:** Spot-check the code. Do the simplest models (e.g., baselines) produce sensible numbers? Are there obvious bugs?
+#### Step 2: Metric Implementation
+- Implement every evaluation metric from `equations.md`
+- Write unit tests: verify each metric against known inputs/outputs
+- Save as a reusable metrics module
 
-**Tools needed:** Python (scikit-learn, scipy, matplotlib, seaborn, statsmodels — whatever the paper's methods require).
+#### Step 3: Baseline Models (Quick Wins)
+- Start with the simplest models (persistence, climatology) to validate the pipeline
+- Run on the data, compute metrics, compare against paper's values
+- If baseline results diverge significantly: stop, diagnose, and document before proceeding
+- This is the "smoke test" — if baselines are wrong, everything else will be too
 
-**Prompt template:**
+#### Step 4: Full Model Implementation
+- Implement each remaining model/method following the exact specifications in `research_logic.md`
+- Follow the paper's training strategy precisely (expanding window, monthly retraining, etc.)
+- Use approved assumptions from `assumptions.md` where the paper is ambiguous
+- Log every implementation decision
+
+#### Step 5: Results Generation
+- Reproduce every results table from `quantitative_targets.json`
+- Generate every figure described in Phase 1's `figures/` descriptions
+- Run any special analyses (e.g., "storm after the calm" scenario)
+- Save all results as structured CSV/JSON files
+
+#### Step 6: Sanity Checks
+- Verify results are internally consistent (e.g., precision and recall match F1)
+- Check for obvious errors: all metrics in [0,1] range, no NaN results
+- Compare simplest results against hand calculations
+
+**Outputs:**
+
 ```
-Using the cleaned data and replication brief, implement all methods
-described in the paper. Follow the exact training strategy. Compute all
-evaluation metrics. Generate all figures and tables. Save results as
-CSVs and figures as PNGs. Document any ambiguities or implementation
-decisions in implementation_log.md. Start with the simplest model to
-verify the pipeline works, then build up to the full analysis.
+phase4_implementation/
+  src/
+    config.py                   # Paths, constants, shared configuration
+    data_loader.py              # Data loading and shared preprocessing
+    metrics.py                  # All evaluation metrics
+    test_metrics.py             # Unit tests for metrics
+    model_persistence.py        # Persistence baseline
+    model_climatology.py        # Climatology baseline
+    model_naive_bayes.py        # Naive Bayes
+    model_logistic.py           # Logistic regression
+    run_all.py                  # Master runner: executes all models, saves all results
+  results/
+    tables/
+      table_N_replicated.csv    # Each results table from the paper
+    figures/
+      figure_N_replicated.png   # Each figure from the paper
+    raw_predictions/
+      model_X_predictions.csv   # Raw model outputs (for debugging)
+  implementation_log.md         # Every decision, ambiguity, and deviation documented
+  results_summary.json          # Machine-readable results for Phase 5
+  GATE.md
+  MANIFEST.json
+  conversation_log.md
+```
+
+**Human checkpoint:** Key questions:
+- Do baseline models produce sensible numbers? (This is the most important check)
+- Does the code structure make sense? Could you follow the logic?
+- Are there obvious bugs or suspicious results?
+- Did the sub-agent flag any ambiguities that need human input?
+
+**Sub-agent template:** `templates/phase4.md`
+
+**Orchestrator prompt to sub-agent:**
+```
+Before doing anything, read these files:
+- templates/phase4.md (your detailed instructions — follow precisely)
+- FRAMEWORK.md (overall context — skim the pipeline overview and Phase 4 section)
+- phase1_comprehension/research_logic.md (what to implement)
+- phase1_comprehension/equations.md (metric formulas)
+- phase1_comprehension/quantitative_targets.json (target values)
+- phase2_planning/replication_plan.md (task ordering and strategy)
+- phase2_planning/assumptions.md (approved assumptions)
+- phase3_data/data_dictionary.md (what the data looks like)
+- phase3_data/GATE.md (human feedback from Phase 3)
+
+Execute the template instructions. Write all outputs to phase4_implementation/.
+Use bash tools/run.sh for all Python execution.
+Start with baselines. If baselines diverge >10% from paper values, stop and document why before proceeding.
 ```
 
 ---
 
 ### Phase 5: Comparison
 
-**Purpose:** Systematically compare replicated results against the paper's reported results.
+**Purpose:** Systematically and quantitatively compare replicated results against the paper's reported results. This is the verdict — did the replication succeed? The comparison must be exhaustive, honest, and machine-readable.
 
-**Input:** Own results, paper's reported results (from replication brief).
+**Input:** Phase 4 outputs (`results_summary.json`, all results tables and figures), Phase 1 outputs (`quantitative_targets.json`, all table descriptions).
 
 **What the AI does:**
-- Creates side-by-side comparison tables (own results vs. paper)
-- Computes differences and percentage deviations
-- Classifies each result as: match (within tolerance), close (small deviation), or discrepant
-- Hypothesizes explanations for discrepancies (data versioning, implementation differences, ambiguities in the paper)
-- Identifies which conclusions from the paper are supported by the replication and which are not
 
-**Output:** Comparison report (`comparison_report.md`) with tables and analysis.
+#### Step 1: Table-by-Table Comparison
+- For every results table in the paper, create a side-by-side comparison: paper value | replicated value | difference | % deviation
+- Classify each cell: MATCH (within rounding tolerance, ≤1%), CLOSE (2-10% deviation), DISCREPANT (>10% deviation)
+- Compute aggregate match rates per table and overall
 
-**Human checkpoint:** Are the discrepancies acceptable? Do the main conclusions hold? Should any phase be re-run with corrections?
+#### Step 2: Figure Comparison
+- For every figure: generate the replicated version and place it alongside the paper's description
+- Qualitatively assess: do the visual patterns match? Same trends, same relative ordering?
+- Where figures contain specific values (axis annotations, data points), compare numerically
 
-**Prompt template:**
+#### Step 3: Key Metric Comparison
+- Focus on the paper's headline results (the numbers in the abstract and conclusions)
+- These matter most — small deviations in peripheral tables are less important than deviations in key findings
+
+#### Step 4: Discrepancy Analysis
+- For every DISCREPANT result, hypothesize explanations:
+  - Data versioning (data updated since publication)
+  - Implementation difference (ambiguity resolved differently)
+  - Bug in replication code
+  - Possible error in the original paper
+  - Rounding or precision differences
+- Rank discrepancies by severity (does this affect the paper's conclusions?)
+
+#### Step 5: Conclusion Assessment
+- For each main conclusion in the paper (from `research_logic.md` → Conclusions section):
+  - State the conclusion
+  - State whether the replication supports, partially supports, or contradicts it
+  - Cite specific evidence
+
+**Outputs:**
+
 ```
-Compare all replicated results against the paper's reported values. For
-every table and key figure, create side-by-side comparisons. Classify
-results as match/close/discrepant. Hypothesize explanations for any
-discrepancies. Assess whether the paper's main conclusions are supported
-by your replication. Save as comparison_report.md.
+phase5_comparison/
+  comparison_tables/
+    table_N_comparison.csv      # Side-by-side for each results table
+  comparison_figures/
+    figure_N_comparison.png     # Replicated figures (for visual comparison)
+  comparison_report.md          # Full narrative analysis
+  comparison_summary.json       # Machine-readable: per-table match rates, per-cell classifications
+  discrepancy_register.md       # Every discrepancy with hypothesis and severity
+  conclusion_assessment.md      # Paper's conclusions vs replication evidence
+  GATE.md
+  MANIFEST.json
+  conversation_log.md
+```
+
+**Human checkpoint:** Key questions:
+- Are the match rates acceptable? (>80% cells matching is good for a first replication)
+- Do the main conclusions hold? This matters more than individual cell values
+- Are discrepancy explanations plausible? Should any phase be re-run?
+- Are there patterns in the discrepancies? (e.g., all X-class results off but M-class fine — suggests a data issue)
+
+**Sub-agent template:** `templates/phase5.md`
+
+**Orchestrator prompt to sub-agent:**
+```
+Before doing anything, read these files:
+- templates/phase5.md (your detailed instructions — follow precisely)
+- FRAMEWORK.md (overall context — skim the pipeline overview and Phase 5 section)
+- phase1_comprehension/quantitative_targets.json (the paper's numbers — the ground truth)
+- phase1_comprehension/research_logic.md (the paper's conclusions)
+- phase1_comprehension/tables/ (original table descriptions)
+- phase1_comprehension/figures/ (original figure descriptions)
+- phase4_implementation/results_summary.json (your replicated numbers)
+- phase4_implementation/results/tables/ (your replicated tables)
+- phase4_implementation/implementation_log.md (decisions that might explain differences)
+- phase4_implementation/GATE.md (human feedback from Phase 4)
+
+Execute the template instructions. Write all outputs to phase5_comparison/.
 ```
 
 ---
 
-### Phase 6: Extensions
+### Phase 6: Final Report
 
-**Purpose:** Go beyond the paper. Identify weaknesses, run additional analyses, propose improvements.
+**Purpose:** Produce the deliverable. A single, dense, factual report that synthesizes the entire replication: what was done, what was found, how well it matched, and what an AI agent that has deeply engaged with this paper thinks about it.
 
-**Input:** Completed replication, comparison report.
+This phase does not run any new code or analysis. It reads everything from Phases 1-5 and writes.
 
-**What the AI does:**
-- Identifies analyses the paper could have done but didn't
-- Runs robustness checks (sensitivity to parameters, alternative metrics)
-- Tests stronger models or alternative methods
-- Adds confidence intervals or statistical tests where the paper only reports point estimates
-- Proposes methodological improvements with evidence
-- Critiques the paper's limitations section — are there limitations the authors missed?
+The report must be concise and information-dense. No filler. Every sentence earns its place. Link to phase artifacts for detail rather than reproducing them inline. The human will edit this for voice and publish it.
 
-**Output:** Extended analysis report (`extensions_report.md`) with additional figures, tables, and commentary.
-
-**Human checkpoint:** Are the extensions sound? Are the critiques fair?
-
-**Prompt template:**
-```
-With the replication complete, go beyond the paper. Identify missing
-analyses, robustness checks, and methodological improvements. Implement
-at least 3-5 extensions. Add confidence intervals where the paper
-reports only point estimates. Test at least one stronger model. Critique
-the paper's methodology and conclusions. Save as extensions_report.md.
-```
-
----
-
-### Phase 7: Report
-
-**Purpose:** Produce a single, coherent replication report suitable for sharing.
-
-**Input:** All outputs from previous phases.
+**Input:** All outputs from all previous phases. Specifically:
+- Every `GATE.md` file (the narrative of what happened at each phase, including human feedback)
+- `phase1_comprehension/replication_brief.md` (what was attempted)
+- `phase1_comprehension/research_logic.md` (the paper's full methodology)
+- `phase1_comprehension/reproducibility_flags.md` (known weaknesses)
+- `phase2_planning/assumptions.md` (decisions made under ambiguity)
+- `phase3_data/data_validation.md` (did the data match?)
+- `phase4_implementation/implementation_log.md` (decisions and struggles)
+- `phase4_implementation/results_summary.json` (the replicated numbers)
+- `phase5_comparison/comparison_report.md` (the verdict)
+- `phase5_comparison/conclusion_assessment.md` (which conclusions held)
+- `phase5_comparison/discrepancy_register.md` (what didn't match)
 
 **What the AI does:**
-- Synthesizes everything into a structured report
-- Includes: summary, methodology, replicated results, comparison, extensions, conclusions
-- Highlights what worked, what didn't, and where the AI struggled
-- Assesses overall replication success (full / partial / failed)
 
-**Output:** Final report (`replication_report.md`).
+#### Part 1: Process & Results Report
+- Walk through each phase briefly: what was done, what happened, key decisions
+- Present the replicated results alongside the paper's results (key tables only — link to full comparison)
+- State the verdict: match rate, which conclusions held, major discrepancies and their explanations
+- Document where the AI succeeded and struggled, where human intervention was needed
+- Be factual and descriptive — no editorializing about the process
 
-**Prompt template:**
+#### Part 2: Review & Proposed Extensions
+Having spent 5 phases deeply inside this paper, the AI reviews it:
+- Critique the methodology: strengths, weaknesses, assumptions that could be questioned
+- Critique the interpretation: are conclusions well-supported or overreached?
+- Propose specific extensions: robustness checks, sensitivity analyses, alternative methods, follow-on studies
+- Each proposal: what to do, why it matters, what it would test. Concrete and actionable.
+- These are suggestions only. Nothing is executed.
+
+**Outputs:**
+
 ```
-Synthesize all outputs from the replication into a final report. Include:
-executive summary, methodology, replicated results with figures, comparison
-against the paper, extensions and novel analyses, and an honest assessment
-of replication success. Highlight where the AI succeeded and where it
-struggled. Save as replication_report.md.
+phase6_report/
+  replication_report.md         # The deliverable — dense, factual, concise
+  report_data.json              # Every number cited in the report (for fact-checking)
+  GATE.md
+  MANIFEST.json
+  conversation_log.md
+```
+
+**Human checkpoint:** This is the final gate. Key questions:
+- Is every number accurate and traceable to underlying phase outputs?
+- Is the tone factual and calm? No AI hyperbole?
+- Is it concise enough? Could anything be cut?
+- Is the critique fair, evidence-based, and constructive?
+- Are the proposed extensions interesting and actionable?
+- Is this ready for you to edit and publish?
+
+**Sub-agent template:** `templates/phase6.md`
+
+**Orchestrator prompt to sub-agent:**
+```
+Before doing anything, read these files:
+- templates/phase6.md (your detailed instructions — follow precisely)
+- FRAMEWORK.md (overall context — skim the pipeline overview and Phase 6 section)
+- ALL GATE.md files from phases 1-5 (the story of what happened)
+- phase1_comprehension/replication_brief.md
+- phase1_comprehension/research_logic.md
+- phase1_comprehension/reproducibility_flags.md
+- phase2_planning/assumptions.md
+- phase3_data/data_validation.md
+- phase4_implementation/implementation_log.md
+- phase4_implementation/results_summary.json
+- phase5_comparison/comparison_report.md
+- phase5_comparison/conclusion_assessment.md
+- phase5_comparison/discrepancy_register.md
+- phase5_comparison/GATE.md
+
+Execute the template instructions. Write all outputs to phase6_report/.
 ```
 
 ---
@@ -489,24 +683,56 @@ paper-replication/
     conversation_log.md         # Conversation snapshot
 
   phase3_data/
-    raw/                        # Downloaded raw files
-    processed/                  # Cleaned CSVs/parquets
-    data_validation.md          # Validation against paper stats
+    raw/                        # Downloaded raw files (untouched)
+    processed/                  # Cleaned CSVs/parquets ready for analysis
+    scripts/
+      download.py               # Reproducible download script
+      parse.py                  # Raw → structured parsing
+      construct.py              # Derived variable construction
+    download_log.md             # URL, timestamp, size, status for each download
+    data_dictionary.md          # Every column: name, type, description, source
+    data_validation.md          # Expected vs actual for every descriptive stat
+    data_summary.json           # Machine-readable summary stats
+    environment_lock.txt        # pip freeze — exact versions installed
+    GATE.md
+    MANIFEST.json
+    conversation_log.md
 
   phase4_implementation/
-    src/                        # Analysis code
-    results/                    # Output tables and figures
-    implementation_log.md       # Decisions and ambiguities
+    src/
+      config.py                 # Paths, constants, shared configuration
+      data_loader.py            # Data loading and shared preprocessing
+      metrics.py                # All evaluation metrics
+      test_metrics.py           # Unit tests for metrics
+      model_*.py                # One file per model/method
+      run_all.py                # Master runner
+    results/
+      tables/                   # Replicated results tables (CSV)
+      figures/                  # Replicated figures (PNG)
+      raw_predictions/          # Raw model outputs
+    implementation_log.md       # Decisions, ambiguities, deviations
+    results_summary.json        # Machine-readable results for Phase 5
+    GATE.md
+    MANIFEST.json
+    conversation_log.md
 
   phase5_comparison/
-    comparison_report.md        # Side-by-side results
+    comparison_tables/          # Side-by-side CSVs per table
+    comparison_figures/         # Replicated figures for visual comparison
+    comparison_report.md        # Full narrative analysis
+    comparison_summary.json     # Per-table match rates, per-cell classifications
+    discrepancy_register.md     # Every discrepancy with hypothesis and severity
+    conclusion_assessment.md    # Paper's conclusions vs replication evidence
+    GATE.md
+    MANIFEST.json
+    conversation_log.md
 
-  phase6_extensions/
-    extensions_report.md        # Additional analyses
-    results/                    # Extension outputs
-
-  phase7_report/
-    replication_report.md       # Final synthesis
+  phase6_report/
+    replication_report.md       # The deliverable — dense, factual, concise
+    report_data.json            # Every number cited (for fact-checking)
+    GATE.md
+    MANIFEST.json
+    conversation_log.md
 ```
 
 ---
