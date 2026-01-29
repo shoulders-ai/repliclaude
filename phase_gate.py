@@ -389,18 +389,31 @@ def cmd_status():
             else:
                 print(f"  Phase {p}: {PHASE_NAMES[p]:20s} PENDING")
 
-    # Check for staleness
+    # Check for staleness — both self-modification and upstream changes
     print("\n--- Staleness Check ---")
     any_stale = False
-    for p in range(2, 8):
+    for p in range(1, 8):
         m = read_manifest(p)
         if m is None:
             continue
-        ok, issues = validate_upstream(p)
-        if not ok:
-            any_stale = True
-            for issue in issues:
-                print(f"  {issue}")
+        # Check if this phase's own outputs were modified after completion
+        current_hashes = hash_directory(PROJECT_ROOT / PHASE_DIRS[p])
+        recorded_hashes = m.get("output_hashes", {})
+        for fpath, recorded_hash in recorded_hashes.items():
+            current_hash = current_hashes.get(fpath)
+            if current_hash is None:
+                any_stale = True
+                print(f"  STALE: Phase {p} — {fpath} was deleted after completion.")
+            elif current_hash != recorded_hash:
+                any_stale = True
+                print(f"  STALE: Phase {p} — {fpath} was modified after completion.")
+        # Check upstream validity for phases > 1
+        if p > 1:
+            ok, issues = validate_upstream(p)
+            if not ok:
+                any_stale = True
+                for issue in issues:
+                    print(f"  {issue}")
     if not any_stale:
         print("  All completed phases are current.")
     print()
