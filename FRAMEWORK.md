@@ -51,7 +51,7 @@ Total human touchpoints: 2-3 for a simple paper, 4+ for a complex one.
 **What happens:** Sub-agent reads the Gemini-extracted PDF content and produces a structured understanding of the paper.
 
 **Inputs:**
-- `understand/extraction.md` (produced by `tools/extract_pdf_gemini.py` before this phase)
+- `understand/extraction.md` (produced by `tools/extract_pdf.py` before this phase)
 - The original PDF (for visual verification of figures/tables if needed)
 
 **Outputs:**
@@ -277,7 +277,9 @@ No formal mechanism. Just:
 ## Tooling
 
 - **Language:** Python. All code in `.venv`. Use `bash tools/run.sh script.py` — never bare `python3` or `pip3`.
-- **PDF extraction:** `tools/extract_pdf_gemini.py` — sends PDF to Gemini, returns structured markdown.
+- **PDF extraction:** `tools/extract_pdf.py` — unified tool with two backends:
+  - `--backend gemini` (default) — Gemini 3 Flash. Clean structured markdown, figure descriptions. Use `--model gemini-3-pro-preview` for higher quality.
+  - `--backend zai` — Z.ai GLM-OCR. High-fidelity OCR with bounding boxes. Best for verifying specific values or handling scanned/complex layouts. Also saves raw JSON with per-element coordinates.
 - **Git:** `replic.py` — lightweight checkpoint/tag/status tool.
 
 ---
