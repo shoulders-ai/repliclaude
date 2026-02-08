@@ -56,7 +56,8 @@ All 5 paper conclusions **supported**: SWPC doesn't beat baselines on event-sens
 │   └── replication_report.md  ← verdict, analysis, and lessons learned
 │
 ├── logs/                      ← Claude Code conversation transcript
-│   └── session-replicate.jsonl ← raw session log from the replication phase
+│   ├── session-replicate.jsonl ← raw session log from the replication phase
+│   └── SUMMARY.md             ← auto-generated, human-readable session summary
 │
 ├── FRAMEWORK.md               ← the repliclaude operating manual (3-phase pipeline)
 ├── USER_MANUAL.md             ← how to use this framework on other papers
