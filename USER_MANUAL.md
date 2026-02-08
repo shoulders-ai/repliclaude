@@ -1,8 +1,8 @@
-# REPLIC-AI: User Manual
+# repliclaude: User Manual
 
 ## What is this?
 
-REPLIC-AI is a framework for using AI (Claude Code) to autonomously replicate published scientific papers. You give it a PDF, it reads the paper, downloads the data, implements the methods, compares its results against the paper's results, and writes a report.
+repliclaude is a framework for using AI (Claude Code) to autonomously replicate published scientific papers. You give it a PDF, it reads the paper, downloads the data, implements the methods, compares its results against the paper's results, and writes a report.
 
 The point is not to produce perfect replications. The point is to explore: **how far can AI get on its own, and where does it break down?**
 
@@ -130,7 +130,7 @@ bash tools/run.sh replic.py status
 
 Output:
 ```
-REPLIC-AI Status
+repliclaude Status
   understand    COMPLETE (2026-02-07)
   replicate     IN PROGRESS (3 checkpoints)
   report        PENDING

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PDF extraction tool for REPLIC-AI.
+PDF extraction tool for repliclaude.
 
 Two backends:
   gemini  — Structured markdown extraction via Gemini (default).
@@ -134,7 +134,7 @@ def extract_zai(pdf_path: pathlib.Path, output_path: pathlib.Path) -> str:
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Extract PDF content for REPLIC-AI")
+    parser = argparse.ArgumentParser(description="Extract PDF content for repliclaude")
     parser.add_argument("pdf", help="Path to PDF file")
     parser.add_argument("output", help="Output file path (.md)")
     parser.add_argument(

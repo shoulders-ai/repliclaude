@@ -1,4 +1,4 @@
-# REPLIC-AI Project Memory
+# repliclaude — Project Memory
 
 ## Project
 AI paper replication framework for Shoulders (founder's thought leadership content). 3-phase pipeline: Understand → Replicate → Synthesize.

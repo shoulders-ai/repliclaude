@@ -35,7 +35,7 @@ Use this structure:
 **Paper:** [Full citation with DOI]
 **Verdict:** FULL / PARTIAL / FAILED
 **Match rate:** X% of values within tolerance (Y% exact match, Z% close)
-**Pipeline:** REPLIC-AI
+**Pipeline:** repliclaude
 
 ---
 

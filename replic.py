@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""REPLIC-AI: lightweight git checkpoint and status tool."""
+"""repliclaude: lightweight git checkpoint and status tool."""
 
 import subprocess
 import sys
@@ -44,7 +44,7 @@ def cmd_tag(phase):
 
 def cmd_status():
     """Show which phases are complete based on git tags."""
-    print("\nREPLIC-AI Status")
+    print("\nrepliclaude Status")
     for phase in PHASES:
         tag = f"{phase}-complete"
         result = subprocess.run(

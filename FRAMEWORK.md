@@ -1,4 +1,4 @@
-# REPLIC-AI v2
+# repliclaude v2
 
 A framework for using AI to replicate published scientific papers. Three phases, minimal ceremony, conversational interaction.
 
@@ -265,7 +265,7 @@ The orchestrator calls these at natural breakpoints. The human never touches git
 
 `replic.py status` output:
 ```
-REPLIC-AI Status
+repliclaude Status
   understand    COMPLETE (2026-01-30)
   replicate     IN PROGRESS (3 checkpoints)
   report        PENDING
