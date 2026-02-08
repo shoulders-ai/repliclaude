@@ -48,10 +48,19 @@ Total human touchpoints: 2-3 for a simple paper, 4+ for a complex one.
 
 ## Phase 1: UNDERSTAND
 
-**What happens:** Sub-agent reads the Gemini-extracted PDF content and produces a structured understanding of the paper.
+**What happens:** The orchestrator first extracts the PDF, then a sub-agent reads the extraction and produces a structured understanding.
 
-**Inputs:**
-- `understand/extraction.md` (produced by `tools/extract_pdf.py` before this phase)
+**Step 0 (orchestrator, before launching sub-agent):**
+Run the PDF extraction:
+```bash
+bash tools/run.sh tools/extract_pdf.py publication.pdf understand/extraction.md
+```
+This sends the PDF to Gemini and produces structured markdown. The human does NOT need to do this — the orchestrator handles it.
+
+If extraction quality is poor (e.g., garbled tables), re-run with `--model gemini-3-pro-preview` or `--backend zai`.
+
+**Inputs (for sub-agent):**
+- `understand/extraction.md` (produced by the orchestrator in Step 0)
 - The original PDF (for visual verification of figures/tables if needed)
 
 **Outputs:**

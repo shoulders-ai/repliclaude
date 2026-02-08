@@ -4,17 +4,17 @@
 
 REPLIC-AI is a framework for using AI (Claude Code) to autonomously replicate published scientific papers. You give it a PDF, it reads the paper, downloads the data, implements the methods, compares its results against the paper's results, and writes a report.
 
-The point is not to produce perfect replications. The point is to explore: **how far can AI get on its own, and where does it break down?** The answer is the content — blog posts, LinkedIn articles, internal reports for [Shoulders](https://shoulders.ai).
+The point is not to produce perfect replications. The point is to explore: **how far can AI get on its own, and where does it break down?**
 
 ## Why this design?
 
-This framework went through two major versions. v1 had 6 phases, 30+ output files, formal gate documents with checklists, and a 489-line Python tool for managing transitions. It worked mechanically but was painful to use — too much ceremony, too many files nobody reads, the human had to edit approval documents instead of just talking.
+This framework went through two major versions. v1 had 6 phases, 30+ output files, formal gate documents with checklists, and a 489-line Python tool for managing transitions. It worked mechanically but was overly formal and painful to use.
 
-v2 stripped it down to what actually matters:
+v2 stripped it down:
 
-- **3 phases** instead of 6 (Understand, Replicate, Synthesize)
-- **~12 output files** instead of 30+
-- **Conversational interaction** — the orchestrator talks to you in chat, you respond in chat. No file editing required.
+- **3 phases** (Understand, Replicate, Synthesize)
+- **~12 output files** 
+- **Conversational interaction** — the orchestrator talks to you in chat, you respond in chat. No mandatory file editing.
 - **Comparison built into replication** — results are checked against the paper automatically as they're produced, not in a separate phase.
 - **A running log** (`replicate/log.md`) that serves as audit trail, debug reference, AND raw material for the final report.
 
@@ -36,7 +36,7 @@ The core insight: the two things that actually matter are (1) deeply understandi
                      (process, results, critique, proposed extensions)
 ```
 
-**Your total involvement:** 2-3 chat interactions for a simple paper. The AI does the rest.
+**Your total involvement:** Depending on AI performance, interactions can be liomited to 2-3 chat messages per paper, while the AI does the rest.
 
 ---
 
@@ -49,7 +49,7 @@ The core insight: the two things that actually matter are (1) deeply understandi
 - `.env` file in the project root with API keys:
   ```
   GEMINI_API_KEY=your_gemini_key
-  ZAI_API_KEY=your_zai_key
+  ZAI_API_KEY=your_zai_key 
   ```
 - Python venv set up: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
 
@@ -57,21 +57,15 @@ The core insight: the two things that actually matter are (1) deeply understandi
 
 Drop a PDF into the project root. Name it `publication.pdf` (or any name — just reference it consistently).
 
-### Step 2: Extract the PDF
-
-```bash
-bash tools/run.sh tools/extract_pdf.py publication.pdf understand/extraction.md
-```
-
-This sends the PDF to Gemini and produces a structured markdown extraction with all text, tables, equations, and figure descriptions. Takes about 30 seconds.
-
-### Step 3: Start a fresh Claude Code session
+### Step 2: Start a fresh Claude Code session
 
 Open a new Claude Code session in this directory. The AI reads `FRAMEWORK.md` as its operating manual and the memory file (`.claude/`) for project context.
 
-Say: **"Run Phase 1"**
+Say: **"Replicate this paper: publication.pdf"**
 
-### Step 4: Review the understanding
+The orchestrator will automatically extract the PDF (sending it to Gemini), then launch the Phase 1 sub-agent. You don't need to run any commands manually.
+
+### Step 3: Review the understanding
 
 The AI will launch a sub-agent that reads the extraction and produces:
 - `understand/brief.md` — structured understanding of the paper (metadata, methods, data sources, assumptions, reproducibility flags)
@@ -91,7 +85,7 @@ Proceed?
 
 Review the summary. If something looks wrong, say so. If it looks fine, say **"proceed"** or **"run Phase 2"**.
 
-### Step 5: Wait for replication
+### Step 4: Wait for replication
 
 Phase 2 is the big one. The AI will:
 1. Download all datasets
@@ -116,7 +110,7 @@ Ready for the report?
 
 Say **"yes"** or **"run Phase 3"**.
 
-### Step 6: Get the report
+### Step 5: Get the report
 
 The AI writes `report/replication_report.md` — a concise, factual report covering:
 1. What the paper does
@@ -128,7 +122,7 @@ The AI writes `report/replication_report.md` — a concise, factual report cover
 
 **This is your deliverable.** Edit it for voice and publish.
 
-### Step 7: Check status anytime
+### Step 6: Check status anytime
 
 ```bash
 bash tools/run.sh replic.py status
