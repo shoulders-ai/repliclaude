@@ -11,7 +11,7 @@ NOAA's Space Weather Prediction Center (SWPC) issues daily probabilistic forecas
 
 ## What Happened Here
 
-Claude Code ran a 3-phase pipeline: **Understand** (extract and analyze the paper) → **Replicate** (download data, implement all models, compare results) → assess. The entire replication was done in a single Claude Code session with light human oversight. The conversation transcript is included.
+Claude Code ran a 3-phase pipeline: **Understand** (extract and analyze the paper) → **Replicate** (download data, implement all models, compare results) → **Synthesize** (write the final report). The full report is at [`report/replication_report.md`](report/replication_report.md). The entire replication was done in a single Claude Code session with light human oversight. The conversation transcript is included.
 
 **Bottom line:** 5 models implemented, 297 numerical values compared against the paper. Persistence matched perfectly (66/66). SWPC evaluation matched 95% (63/66). Climatology, Naive Bayes, and Logistic Regression had lower match rates due to ambiguities in the paper's feature computation — but all 5 of the paper's conclusions were independently confirmed.
 
@@ -52,6 +52,9 @@ All 5 paper conclusions **supported**: SWPC doesn't beat baselines on event-sens
 │   ├── comparison.json        ← automated comparison against paper (MATCH/CLOSE/DISCREPANT)
 │   └── log.md                 ← narrative log of the replication process
 │
+├── report/                    ← Phase 3: final synthesis
+│   └── replication_report.md  ← verdict, analysis, and lessons learned
+│
 ├── logs/                      ← Claude Code conversation transcript
 │   └── session-replicate.jsonl ← raw session log from the replication phase
 │
@@ -67,6 +70,7 @@ All 5 paper conclusions **supported**: SWPC doesn't beat baselines on event-sens
 
 | If you want to... | Go to |
 |---|---|
+| Read the final report | [`report/replication_report.md`](report/replication_report.md) |
 | Read the paper | [`publication.pdf`](publication.pdf) or [online](https://agupubs.onlinelibrary.wiley.com/doi/full/10.1029/2025SW004546) |
 | See what the AI understood | [`understand/brief.md`](understand/brief.md) |
 | See the replication code | [`replicate/src/`](replicate/src/) |
